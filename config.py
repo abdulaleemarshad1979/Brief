@@ -12,6 +12,7 @@ LOCATIONS = [
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+TELUGU_GROQ_MODEL = os.getenv("TELUGU_GROQ_MODEL", "llama-3.3-70b-versatile")
 
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "")
 EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD", "")

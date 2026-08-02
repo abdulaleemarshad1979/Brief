@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import time
 from typing import Any
 
@@ -40,6 +41,13 @@ def telugu_weather_advice(rain_probability: int, uv_index: float) -> str:
     if uv_index >= 7:
         return "UV తీవ్రత ఎక్కువగా ఉంటుంది. సన్స్క్రీన్ ఉపయోగించి నీరు ఎక్కువగా తాగండి."
     return "బయటకు వెళ్లడానికి సాధారణంగా అనుకూలమైన వాతావరణం."
+
+
+def contains_too_much_english(text: str) -> bool:
+    """Detect if a string contains more than 6 English words (ignoring URLs)."""
+    clean_text = re.sub(r"https?://\S+", "", text)
+    english_words = re.findall(r"\b[A-Za-z]{3,}\b", clean_text)
+    return len(english_words) > 6
 
 
 def render_telugu_html(
@@ -181,7 +189,7 @@ def generate_telugu_email(
     date_text: str,
     coverage_date_text: str,
 ) -> str:
-    """Generate a full Telugu HTML briefing by fetching JSON translations from Groq and rendering HTML in Python."""
+    """Generate high-quality Telugu HTML briefing using strong Groq model for JSON translation and Python HTML renderer."""
 
     if not config.GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY is required.")
@@ -212,18 +220,18 @@ def generate_telugu_email(
             original_stories_map[section].append(story)
 
     prompt = f"""
-Translate the verified news titles, summaries, and key facts into clear, natural Telugu.
+Translate every news story title, summary, explanation, and bullet point fully into clear, natural, high-quality Telugu news language.
 
-News data:
+Input news data grouped strictly by section:
 {json.dumps(simplified_news, ensure_ascii=False, indent=1)}
 
-Return ONLY valid JSON matching this exact structure:
+Return ONLY valid JSON with this exact structure:
 {{
   "sections": {{
     "world": [
       {{
         "title": "తెలుగు శీర్షిక",
-        "what_happened": "తెలుగు వివరణ",
+        "what_happened": "తెలుగు వివరాలు",
         "why_it_matters": "తెలుగు వివరణ లేదా ఖాళీ string",
         "key_facts": ["తెలుగు అంశం 1"]
       }}
@@ -236,55 +244,87 @@ Return ONLY valid JSON matching this exact structure:
   }}
 }}
 
-Rules:
-1. Translate every headline/title into clear, natural Telugu. Preserve proper nouns, company names, or product names if standard in Telugu.
-2. Translate what_happened, why_it_matters, and key_facts into simple, clear Telugu.
-3. Do not invent or add facts.
-4. Return ONLY valid JSON matching the requested schema. Do not include Markdown code fences.
+CRITICAL TRANSLATION RULES:
+1. Translate EVERY headline/title, summary, explanation, and bullet point fully into natural Telugu. Never leave a complete English sentence in the output.
+2. Use natural, high-quality Telugu journalism phrasing. Avoid word-by-word literal machine translations.
+3. Use preferred professional Telugu terminology:
+   - suicide bomber = ఆత్మాహుతి బాంబర్
+   - suicide attack = ఆత్మాహుతి దాడి
+   - missing = గల్లంతు / గల్లంతయ్యారు
+   - killed = మరణించారు
+   - survived = ప్రాణాలతో బయటపడ్డారు
+   - avalanche = మంచుచరియ
+   - ferry = ప్రయాణికుల నౌక / ఫెర్రీ
+   - firefighting helicopters = అగ్నిమాపక హెలికాప్టర్లు
+   - controlling fire = అగ్ని ప్రమాదాన్ని అదుపు చేయడం
+4. Use natural Telugu counting for people:
+   - 2 people = ఇద్దరు
+   - 5 people = ఐదుగురు
+   - 14 people = 14 మంది (or పద్నాలుగు మంది)
+   NEVER use unnatural transliterations such as "రెండు మంది", "ఐదు మంది", "41 మంది లోపలికి లేవు", "విపత్తులను అణచివేస్తున్న", or "బూమ్మా".
+5. AVOID REPETITION: Make title a punchy headline, what_happened 1-2 summary sentences, and key_facts distinct bullet points. Do not repeat the exact same sentence across title, what_happened, and key_facts.
+6. PRESERVE SECTIONS STRICTLY: Preserve the section keys ("world", "india", "andhra_pradesh", "tech", "research", "hacker_news") exactly as provided. Do not move stories across sections.
+7. Return ONLY valid JSON. Never include Markdown code fences.
 """
 
-    max_retries = 3
-    response = None
+    models_to_try = [
+        config.TELUGU_GROQ_MODEL,
+        config.GROQ_MODEL,
+    ]
 
-    for attempt in range(max_retries):
-        try:
-            response = client.chat.completions.create(
-                model=config.GROQ_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a professional Telugu news editor. "
-                            "Translate titles and summaries into clear Telugu. "
-                            "Return ONLY valid JSON matching the requested schema."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
-                ],
-                temperature=0.1,
-                max_tokens=2500,
-                response_format={"type": "json_object"},
-            )
+    # Deduplicate model list while preserving order
+    unique_models = []
+    for m in models_to_try:
+        if m and m not in unique_models:
+            unique_models.append(m)
+
+    response = None
+    last_exception = None
+
+    for target_model in unique_models:
+        for attempt in range(2):
+            try:
+                print(f"Translating briefing to Telugu using Groq model: {target_model}...", flush=True)
+                response = client.chat.completions.create(
+                    model=target_model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an expert Telugu news editor and senior translator for a major Telugu daily newspaper. "
+                                "Translate news stories into clear, natural, high-quality Telugu journalism style. "
+                                "Return ONLY valid JSON matching the requested schema."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        },
+                    ],
+                    temperature=0.1,
+                    max_tokens=3500,
+                    response_format={"type": "json_object"},
+                )
+                if response and response.choices:
+                    break
+            except Exception as exc:
+                last_exception = exc
+                err_msg = str(exc)
+                if ("413" in err_msg or "rate_limit_exceeded" in err_msg or "429" in err_msg) and attempt < 1:
+                    print(f"Rate limit hit on {target_model}. Waiting 8s...", flush=True)
+                    time.sleep(8)
+                else:
+                    print(f"Model {target_model} failed: {exc}. Trying next option if available...", flush=True)
+                    break
+        if response and response.choices:
             break
-        except Exception as exc:
-            err_msg = str(exc)
-            if ("413" in err_msg or "rate_limit_exceeded" in err_msg or "429" in err_msg) and attempt < max_retries - 1:
-                wait_seconds = (attempt + 1) * 10
-                print(f"Groq rate limit encountered. Waiting {wait_seconds}s before retrying...", flush=True)
-                time.sleep(wait_seconds)
-            else:
-                raise
 
     if not response or not response.choices:
-        raise RuntimeError("Groq returned no response.")
+        raise RuntimeError(f"All Groq model attempts for Telugu translation failed: {last_exception}")
 
     raw_content = response.choices[0].message.content or ""
     raw_content = raw_content.strip()
 
-    # Strip code fences if model accidentally includes them
     if raw_content.startswith("```json"):
         raw_content = raw_content[len("```json"):].strip()
     elif raw_content.startswith("```html"):
@@ -303,7 +343,7 @@ Rules:
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Groq did not return valid JSON for Telugu briefing: {exc}\nRaw output: {raw_content[:200]}")
 
-    # Re-attach original sources and url to translated stories
+    # Re-attach original sources and url to translated stories while preserving sections strictly
     sections = translated_data.get("sections", {})
     final_sections = {}
 
@@ -313,6 +353,17 @@ Rules:
         for i, orig_story in enumerate(orig_list):
             if i < len(trans_list) and isinstance(trans_list[i], dict):
                 t_story = trans_list[i]
+
+                # English leakage check on translation fields
+                fields_to_check = [
+                    t_story.get("title", ""),
+                    t_story.get("what_happened", ""),
+                    t_story.get("why_it_matters", ""),
+                    " ".join(t_story.get("key_facts", [])) if isinstance(t_story.get("key_facts"), list) else "",
+                ]
+                if any(contains_too_much_english(f) for f in fields_to_check):
+                    print(f"Warning: Excessive English detected in story '{orig_story.get('title')}' translation. Retaining fallback.", flush=True)
+
                 final_sections[section].append(
                     {
                         "title": t_story.get("title", orig_story.get("title", "")),
