@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import smtplib
 from email.message import EmailMessage
+from email.utils import formatdate, make_msgid
 
 
 def send_email(
@@ -13,17 +14,55 @@ def send_email(
 ) -> None:
     if not sender or not app_password or not recipient:
         raise ValueError(
-            "EMAIL_ADDRESS, EMAIL_APP_PASSWORD and RECIPIENT_EMAIL must be configured."
+            "Sender, app password and recipient must be configured."
         )
 
+    recipient = recipient.strip()
+
     message = EmailMessage()
-    message["From"] = sender
+
+    message["From"] = f"Abdul Morning Briefing <{sender}>"
     message["To"] = recipient
+    message["Reply-To"] = sender
     message["Subject"] = subject
-    message.set_content("Your email client does not support the HTML morning briefing.")
-    message.add_alternative(html, subtype="html")
+
+    # Important standard email headers
+    message["Date"] = formatdate(localtime=True)
+    message["Message-ID"] = make_msgid(domain="gmail.com")
+
+    message.set_content(
+        "శుభోదయం. ఇది మీ రోజువారీ తెలుగు వార్తలు మరియు "
+        "వాతావరణ సమాచార నివేదిక."
+    )
+
+    message.add_alternative(
+        html,
+        subtype="html",
+    )
+
+    print(
+        f"SMTP sending to exact address: {recipient!r}",
+        flush=True,
+    )
 
     with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
+        smtp.ehlo()
         smtp.starttls()
+        smtp.ehlo()
         smtp.login(sender, app_password)
-        smtp.send_message(message)
+
+        refused = smtp.send_message(
+            message,
+            from_addr=sender,
+            to_addrs=[recipient],
+        )
+
+        if refused:
+            raise RuntimeError(
+                f"Recipient refused by SMTP server: {refused}"
+            )
+
+    print(
+        f"SMTP accepted Telugu email for: {recipient!r}",
+        flush=True,
+    )
