@@ -2,41 +2,32 @@ import json
 import logging
 from typing import Any
 import config
-from news import TRUSTED_SOURCES
+from news import INVALID_SOURCES, OFFICIAL_SOURCES, TRUSTED_SOURCES
 
 logger = logging.getLogger(__name__)
 
 
-def compute_verification_status(sources: list[str], title: str, summary: str) -> str:
-    """Calculate story verification status strictly in Python based on source quality and evidence."""
-    clean_sources = [str(s).strip() for s in sources if s and str(s).strip()]
+def compute_verification_status(sources: list[str]) -> str:
+    """Calculate story verification status strictly in Python using strict trusted/official source policies."""
+    cleaned = []
+    for source in sources:
+        s = str(source).strip()
+        if not s or any(inv.lower() in s.lower() for inv in INVALID_SOURCES):
+            continue
+        matched = next((t for t in TRUSTED_SOURCES if t.lower() in s.lower()), s)
+        if matched not in cleaned:
+            cleaned.append(matched)
 
-    # Count trusted sources
-    trusted_count = sum(
-        1 for s in clean_sources
-        if any(t.lower() in s.lower() for t in TRUSTED_SOURCES)
-    )
+    official_count = sum(1 for s in cleaned if any(o.lower() in s.lower() for o in OFFICIAL_SOURCES))
+    trusted_count = sum(1 for s in cleaned if any(t.lower() in s.lower() for t in TRUSTED_SOURCES))
 
-    low_text = (title + " " + summary).lower()
-
-    # Rumor / Leak / Speculation detection
-    if any(k in low_text for k in ("leak", "leaked", "rumor", "rumoured", "unconfirmed", "speculation", "alleged transcript")):
-        return "rumor"
-
-    # Developing / Ongoing investigation detection
-    if any(k in low_text for k in ("alleged", "police probe", "investigation", "developing", "casualty count", "protesters allege")):
-        return "developing"
-
-    # Official primary sources
-    primary = {"pib", "reuters", "ap", "associated press", "bbc", "news on air", "openai", "google", "microsoft", "nvidia", "arxiv"}
-    has_primary = any(any(p in s.lower() for p in primary) for s in clean_sources)
-
-    if trusted_count >= 2 or has_primary:
+    if official_count >= 1:
         return "verified"
-    elif trusted_count >= 1:
+    if trusted_count >= 2:
+        return "verified"
+    if trusted_count >= 1:
         return "single_source"
-    else:
-        return "unverified"
+    return "rejected"
 
 
 def fallback_summaries(articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -46,7 +37,9 @@ def fallback_summaries(articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
         sources = [art.get("source", "RSS Feed")]
         title = art.get("title", "Untitled Story")
         summary = art.get("summary") or title
-        v_status = compute_verification_status(sources, title, summary)
+        v_status = compute_verification_status(sources)
+        if v_status == "rejected":
+            continue
         cards.append(
             {
                 "title": title,
@@ -162,7 +155,7 @@ Each object MUST strictly follow this JSON schema:
                     url = s["url"]
                 s["url"] = url
 
-                # Ensure exact JSON key for why_it_matters if model mis-keys it
+                # Ensure exact JSON key for why_it_matters
                 if "why_it_matters" not in s:
                     for k in list(s.keys()):
                         if "why" in k or "matters" in k:
@@ -173,10 +166,11 @@ Each object MUST strictly follow this JSON schema:
 
                 # Compute verification status strictly in Python
                 sources = s.get("sources") or []
-                title = s.get("title") or ""
-                what = s.get("what_happened") or ""
-                s["verification_status"] = compute_verification_status(sources, title, what)
+                v_status = compute_verification_status(sources)
+                if v_status == "rejected":
+                    continue
 
+                s["verification_status"] = v_status
                 cleaned_stories.append(s)
 
         if len(cleaned_stories) > 0:

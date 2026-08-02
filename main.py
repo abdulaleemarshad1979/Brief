@@ -50,12 +50,19 @@ def render_ai_cards(stories: list[dict]) -> str:
         badge_text = badge_labels.get(status, "❓ Unverified")
         status_badge_html = f'<span class="status-badge badge-{html.escape(status)}">{badge_text}</span>'
 
-        sources = item.get("sources") or []
-        if isinstance(sources, list):
-            sources = list(dict.fromkeys(str(source).strip() for source in sources if source and str(source).strip()))
-            source_str = ", ".join(sources)
-        else:
-            source_str = str(sources).strip()
+        raw_sources = item.get("sources") or []
+        if isinstance(raw_sources, str):
+            raw_sources = [raw_sources]
+
+        clean_sources = []
+        for s in raw_sources:
+            st = str(s).strip()
+            if not st or any(inv.lower() in st.lower() for inv in news.INVALID_SOURCES):
+                continue
+            if st not in clean_sources:
+                clean_sources.append(st)
+
+        source_str = ", ".join(clean_sources)
         meta_html = f'<span class="meta-tag">Sources: {html.escape(source_str)}</span>' if source_str else ""
 
         cards.append(

@@ -62,40 +62,102 @@ FEEDS = {
     ],
 }
 
-TRUSTED_SOURCES = {
-    "Reuters",
-    "Associated Press",
-    "AP",
-    "BBC",
-    "BBC World",
-    "The Hindu",
-    "The Indian Express",
-    "NDTV",
+INVALID_SOURCES = {
+    "news.google.com",
+    "Google News",
+    "Google News – World",
+    "Google News – India",
+    "Google News – Andhra Pradesh",
+    "Google News – Tech & Software",
+    "Google News – Research & Papers",
+    "instagram.com",
+    "facebook.com",
+    "x.com",
+    "twitter.com",
+}
+
+OFFICIAL_SOURCES = {
     "PIB",
     "News On AIR",
     "OpenAI",
     "Google",
     "Microsoft",
     "NVIDIA",
+    "Meta",
+    "IBM",
+    "arXiv",
+    "Nature",
+    "Science",
+}
+
+TRUSTED_SOURCES = {
+    "Reuters",
+    "Associated Press",
+    "AP",
+    "BBC",
+    "BBC World",
+    "The Guardian",
+    "Al Jazeera",
+    "The Hindu",
+    "The Indian Express",
+    "NDTV",
+    "Hindustan Times",
+    "Times of India",
+    "The Times of India",
+    "News On AIR",
+    "PIB",
     "The Verge",
     "TechCrunch",
     "Ars Technica",
     "Wired",
-    "Hacker News",
+    "MIT Technology Review",
+    "OpenAI",
+    "Google",
+    "Microsoft",
+    "NVIDIA",
+    "Meta",
+    "IBM",
     "arXiv",
+    "Nature",
+    "Science",
     "Navbharat Times",
-    "The Times of India",
-    "Times of India",
-    "Hindustan Times",
+    "Hacker News",
 }
 
 
 def clean_text(value: str, limit: int = 400) -> str:
-    text = BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True)
+    if not value:
+        return ""
+    soup = BeautifulSoup(value, "html.parser")
+    # Strip noisy Google News related headline lists
+    for ul in soup.find_all("ul"):
+        ul.decompose()
+    text = soup.get_text(" ", strip=True)
     text = re.sub(r"\s+", " ", text).strip()
     if len(text) > limit:
         text = text[: limit - 1].rsplit(" ", 1)[0] + "…"
     return text
+
+
+def extract_source_name(entry, fallback_source: str) -> str:
+    """Extract clean publisher source name and reject invalid aggregators/social media."""
+    raw_source = ""
+    if isinstance(entry.get("source"), dict):
+        raw_source = entry.source.get("title") or ""
+
+    if not raw_source or raw_source in INVALID_SOURCES:
+        title = entry.get("title", "")
+        if " - " in title:
+            candidate = title.rsplit(" - ", 1)[-1].strip()
+            if candidate and candidate not in INVALID_SOURCES:
+                raw_source = candidate
+
+    if not raw_source and fallback_source not in INVALID_SOURCES:
+        raw_source = fallback_source
+
+    if not raw_source or any(inv.lower() in raw_source.lower() for inv in ("google news", "instagram", "facebook", "x.com", "twitter")):
+        return ""
+    return raw_source
 
 
 def extract_article_content(url: str, max_chars: int = 1200) -> str:
@@ -107,8 +169,7 @@ def extract_article_content(url: str, max_chars: int = 1200) -> str:
         if resp.status_code != 200:
             return ""
         soup = BeautifulSoup(resp.text, "html.parser")
-        # Strip script, style, nav, footer, header
-        for element in soup(["script", "style", "nav", "footer", "header", "aside"]):
+        for element in soup(["script", "style", "nav", "footer", "header", "aside", "ul"]):
             element.decompose()
         paragraphs = [p.get_text(strip=True) for p in soup.find_all("p") if len(p.get_text(strip=True)) > 40]
         text = " ".join(paragraphs)
@@ -172,9 +233,9 @@ def collect_category(category: str, limit: int) -> list[dict]:
             if not title or is_duplicate(title, candidates):
                 continue
 
-            source = fallback_source
-            if isinstance(entry.get("source"), dict):
-                source = entry.source.get("title") or fallback_source
+            source = extract_source_name(entry, fallback_source)
+            if not source:
+                continue
 
             link = entry.get("link") or ""
             summary = clean_text(
@@ -207,7 +268,6 @@ def collect_category(category: str, limit: int) -> list[dict]:
             if category == "india":
                 if source == "PIB" and any(k in low_title for k in ("congratulates", "congratulated", "greets", "wishes")):
                     continue
-                # If headline is purely about US/Trump/Iran/Gaza without any India context
                 if any(k in low_title for k in ("trump cancels", "iran strikes", "ceuta", "idaho shooting")) and "india" not in low_title:
                     continue
 
@@ -225,7 +285,7 @@ def collect_category(category: str, limit: int) -> list[dict]:
             if len(candidates) >= limit * 2:
                 break
 
-    # Sort candidates so trusted sources come first, keeping original order within each group
+    # Sort candidates so trusted sources come first
     candidates.sort(key=lambda x: 0 if x["is_trusted"] else 1)
     return candidates[:limit]
 
