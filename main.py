@@ -6,6 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import config
+import news
 from ai_summarizer import summarize_section_with_groq
 from email_sender import send_email
 from news import get_all_news, INVALID_SOURCES
