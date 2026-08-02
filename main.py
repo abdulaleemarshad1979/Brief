@@ -40,7 +40,11 @@ def render_ai_cards(stories: list[dict]) -> str:
             facts_html = f'<ul class="key-facts">{lis}</ul>'
 
         sources = item.get("sources") or []
-        source_str = ", ".join(sources) if isinstance(sources, list) else str(sources)
+        if isinstance(sources, list):
+            sources = list(dict.fromkeys(str(source).strip() for source in sources if source and str(source).strip()))
+            source_str = ", ".join(sources)
+        else:
+            source_str = str(sources).strip()
         meta_html = f'<span class="meta-tag">Sources: {html.escape(source_str)}</span>' if source_str else ""
 
         cards.append(

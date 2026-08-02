@@ -42,13 +42,12 @@ FEEDS = {
     ],
     "tech": [
         (
-            "Google News – Technology",
-            "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-IN&gl=IN&ceid=IN:en",
-        ),
-        (
-            "Google News – AI & Cybersecurity",
+            "Google News – Tech & Software",
             "https://news.google.com/rss/search?q="
-            + quote_plus("(artificial intelligence OR cybersecurity OR software OR startups) when:1d")
+            + quote_plus(
+                "(artificial intelligence OR cybersecurity OR software OR cloud "
+                "OR developer tools OR open source OR startup funding) when:1d"
+            )
             + "&hl=en-IN&gl=IN&ceid=IN:en",
         ),
     ],
@@ -61,6 +60,29 @@ FEEDS = {
             + "&hl=en-IN&gl=IN&ceid=IN:en",
         ),
     ],
+}
+
+TRUSTED_SOURCES = {
+    "Reuters",
+    "BBC",
+    "BBC World",
+    "The Hindu",
+    "The Indian Express",
+    "NDTV",
+    "Hindustan Times",
+    "Times of India",
+    "The Times of India",
+    "News On AIR",
+    "PIB",
+    "OpenAI",
+    "Google",
+    "Microsoft",
+    "NVIDIA",
+    "The Verge",
+    "TechCrunch",
+    "Wired",
+    "Ars Technica",
+    "Hacker News",
 }
 
 
@@ -192,15 +214,16 @@ def collect_category(category: str, limit: int) -> list[dict]:
                     "url": link,
                     "source": source,
                     "published": published,
+                    "is_trusted": any(t.lower() in source.lower() for t in TRUSTED_SOURCES),
                 }
             )
 
-            if len(candidates) >= limit:
+            if len(candidates) >= limit * 2:
                 break
-        if len(candidates) >= limit:
-            break
 
-    return candidates
+    # Sort candidates so trusted sources come first, keeping original order within each group
+    candidates.sort(key=lambda x: 0 if x["is_trusted"] else 1)
+    return candidates[:limit]
 
 
 def collect_hacker_news(limit: int = 4) -> list[dict]:

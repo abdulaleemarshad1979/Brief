@@ -57,14 +57,15 @@ Instructions:
    - For example, do NOT include international or US-Iran news inside India News.
    - For Technology, prioritize AI, cybersecurity, software releases, developer tools, startups, and infrastructure. Exclude generic car reviews or unverified gadget rumors.
 3. NO HYPERBOLE: Do not use generic buzzwords such as "significant development", "game-changer", or "has the potential to" unless directly justified by the source text.
-4. FORMAT RULES: Every item in "key_facts" MUST be a plain text string. Never return dictionaries or objects inside "key_facts".
+4. WHY IT MATTERS: For "why_it_matters", explain a concrete consequence ONLY when supported by the source material. If no meaningful consequence is available, return an empty string "". Do not simply restate the headline.
+5. FORMAT RULES: Every item in "key_facts" MUST be a plain text string. Never return dictionaries or objects inside "key_facts".
 
 Return ONLY a valid JSON object with a key "stories" containing a list of 2 to 5 high-quality objects.
 Each object MUST strictly follow this JSON schema:
 {{
   "title": "Concise factual headline",
   "what_happened": "2-3 factual sentences explaining what occurred",
-  "why_it_matters": "1-2 factual sentences on direct impact",
+  "why_it_matters": "1-2 factual sentences on direct impact, or empty string '' if unavailable",
   "key_facts": ["Fact or statistic 1 as a plain string", "Fact 2 as a plain string"],
   "sources": ["Source Name 1", "Source Name 2"],
   "url": "Primary URL"
