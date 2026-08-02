@@ -12,6 +12,16 @@ from news import get_all_news
 from weather import get_weather
 
 
+def format_fact(fact) -> str:
+    if isinstance(fact, dict):
+        if "value" in fact and "label" in fact:
+            return f'{fact["label"]}: {fact["value"]}'
+        if "bullet" in fact:
+            return str(fact["bullet"])
+        return " · ".join(str(value) for value in fact.values())
+    return str(fact)
+
+
 def render_ai_cards(stories: list[dict]) -> str:
     if not stories:
         return '<div class="empty">No recent stories were available from the configured feeds.</div>'
@@ -26,7 +36,7 @@ def render_ai_cards(stories: list[dict]) -> str:
         facts_html = ""
         key_facts = item.get("key_facts") or []
         if isinstance(key_facts, list) and len(key_facts) > 0:
-            lis = "".join(f"<li>{html.escape(str(fact))}</li>" for fact in key_facts)
+            lis = "".join(f"<li>{html.escape(format_fact(fact))}</li>" for fact in key_facts)
             facts_html = f'<ul class="key-facts">{lis}</ul>'
 
         sources = item.get("sources") or []

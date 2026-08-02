@@ -35,30 +35,40 @@ def summarize_section_with_groq(
 
         client = Groq(api_key=config.GROQ_API_KEY)
 
-        # Prepare material for Groq prompt
         material = []
-        for idx, item in enumerate(articles[:8], 1):
+        for idx, item in enumerate(articles[:10], 1):
             material.append(
                 f"[{idx}] Title: {item.get('title')}\n"
                 f"    Source: {item.get('source')}\n"
                 f"    URL: {item.get('url')}\n"
-                f"    Snippet: {item.get('summary', '')[:400]}\n"
+                f"    Snippet/Body: {item.get('summary', '')[:500]}\n"
             )
 
-        prompt = f"""You are an expert news research assistant compiling a morning briefing section for '{category_label}'.
-Below is a list of recent articles:
+        prompt = f"""You are a strict, factual research analyst compiling a morning briefing section for '{category_label}'.
+Below is a list of recent articles collected for this section:
 
 {"---".join(material)}
 
-Synthesize these articles into a concise list of top 3 to 5 distinct, high-impact story cards. Combine duplicates covering the same event into a single researched card listing multiple sources.
+Instructions:
+1. STRICT SOURCE GROUNDING: Use ONLY facts explicitly present in the supplied titles, snippets, or body texts above.
+   - Do NOT invent casualty numbers, causes, arrests, political motivations, economic effects, or future consequences.
+   - If the source material is insufficient, explicitly state: "Available source information is limited."
+2. CATEGORY RELEVANCE: Exclude stories that are unrelated to '{category_label}'.
+   - For example, do NOT include international or US-Iran news inside India News.
+   - For Technology, prioritize AI, cybersecurity, software releases, developer tools, startups, and infrastructure. Exclude generic car reviews or unverified gadget rumors.
+3. NO HYPERBOLE: Do not use generic buzzwords such as "significant development", "game-changer", or "has the potential to" unless directly justified by the source text.
+4. FORMAT RULES: Every item in "key_facts" MUST be a plain text string. Never return dictionaries or objects inside "key_facts".
 
-Return ONLY a valid JSON object with a key "stories" containing a list of objects. Each object MUST have:
-- "title": Concise headline of what happened
-- "what_happened": 2-3 sentences explaining the event clearly
-- "why_it_matters": 1-2 sentences on impact and future context
-- "key_facts": A list of 1-3 key numbers, statistics, or bullet points
-- "sources": A list of source names covering this story (e.g. ["BBC", "Reuters"])
-- "url": Primary article link URL
+Return ONLY a valid JSON object with a key "stories" containing a list of 2 to 5 high-quality objects.
+Each object MUST strictly follow this JSON schema:
+{{
+  "title": "Concise factual headline",
+  "what_happened": "2-3 factual sentences explaining what occurred",
+  "why_it_matters": "1-2 factual sentences on direct impact",
+  "key_facts": ["Fact or statistic 1 as a plain string", "Fact 2 as a plain string"],
+  "sources": ["Source Name 1", "Source Name 2"],
+  "url": "Primary URL"
+}}
 """
 
         response = client.chat.completions.create(
@@ -66,12 +76,12 @@ Return ONLY a valid JSON object with a key "stories" containing a list of object
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a professional research analyst. Respond ONLY with valid JSON.",
+                    "content": "You are a professional factual research analyst. Output strictly valid JSON without fluff.",
                 },
                 {"role": "user", "content": prompt},
             ],
             response_format={"type": "json_object"},
-            temperature=0.2,
+            temperature=0.1,
             max_tokens=2048,
         )
 
@@ -79,8 +89,30 @@ Return ONLY a valid JSON object with a key "stories" containing a list of object
         parsed = json.loads(content)
         stories = parsed.get("stories") or parsed.get("data") or []
 
-        if isinstance(stories, list) and len(stories) > 0:
-            return stories
+        # Sanitize key_facts in returned stories to guarantee all key_facts items are strings
+        cleaned_stories = []
+        if isinstance(stories, list):
+            for s in stories:
+                if not isinstance(s, dict):
+                    continue
+                raw_facts = s.get("key_facts") or []
+                clean_facts = []
+                if isinstance(raw_facts, list):
+                    for f in raw_facts:
+                        if isinstance(f, dict):
+                            if "value" in f and "label" in f:
+                                clean_facts.append(f"{f['label']}: {f['value']}")
+                            elif "bullet" in f:
+                                clean_facts.append(str(f["bullet"]))
+                            else:
+                                clean_facts.append(" · ".join(str(v) for v in f.values()))
+                        elif f:
+                            clean_facts.append(str(f))
+                s["key_facts"] = clean_facts
+                cleaned_stories.append(s)
+
+        if len(cleaned_stories) > 0:
+            return cleaned_stories
 
     except Exception as exc:
         logger.warning(f"Groq summarization failed for {category_label}: {exc}. Using fallback.")

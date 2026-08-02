@@ -153,13 +153,16 @@ def collect_category(category: str, limit: int) -> list[dict]:
             link = entry.get("link") or ""
             summary = clean_text(
                 entry.get("summary") or entry.get("description") or "",
-                400,
+                500,
             )
-
-            if "Google News" in fallback_source:
-                summary = ""
             if summary.lower() == title.lower():
                 summary = ""
+
+            # Attempt fetching article body content if summary is short
+            if len(summary) < 100 and link and not link.startswith("https://news.google.com/rss/articles/"):
+                extracted = extract_article_content(link, max_chars=800)
+                if extracted:
+                    summary = clean_text(extracted, 500)
 
             # Filter out heavy non-ASCII / non-English content
             ascii_letters = sum(ch.isascii() and ch.isalpha() for ch in title)
@@ -168,16 +171,24 @@ def collect_category(category: str, limit: int) -> list[dict]:
                 continue
 
             low_title = title.lower()
-            if category == "india" and source == "PIB" and any(
-                phrase in low_title
-                for phrase in ("congratulates", "congratulated", "greets", "wishes")
-            ):
-                continue
+
+            # Tech section filtering: Exclude generic car reviews & speculative rumor leaks
+            if category == "tech":
+                if any(k in low_title for k in ("car review", "hot hatch", "leaks reveal", "release date, price", "price changes")):
+                    continue
+
+            # India section filtering: Exclude pure international stories & PIB greetings
+            if category == "india":
+                if source == "PIB" and any(k in low_title for k in ("congratulates", "congratulated", "greets", "wishes")):
+                    continue
+                # If headline is purely about US/Trump/Iran/Gaza without any India context
+                if any(k in low_title for k in ("trump cancels", "iran strikes", "ceuta", "idaho shooting")) and "india" not in low_title:
+                    continue
 
             candidates.append(
                 {
                     "title": title,
-                    "summary": summary,
+                    "summary": summary if summary else title,
                     "url": link,
                     "source": source,
                     "published": published,
