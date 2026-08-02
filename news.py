@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus
+from zoneinfo import ZoneInfo
 
 import feedparser
 import requests
@@ -81,14 +82,22 @@ def is_duplicate(title: str, existing: list[dict]) -> bool:
 
 
 def collect_category(category: str, limit: int) -> list[dict]:
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=36)
+    india_timezone = ZoneInfo("Asia/Kolkata")
+    now_ist = datetime.now(india_timezone)
+
+    yesterday_start_ist = (now_ist - timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+    cutoff = yesterday_start_ist.astimezone(timezone.utc)
+    current_time_utc = now_ist.astimezone(timezone.utc)
     candidates: list[dict] = []
 
     for fallback_source, url in FEEDS[category]:
         parsed = feedparser.parse(url, request_headers=HEADERS)
         for entry in parsed.entries:
             published = published_datetime(entry)
-            if published < cutoff:
+            if published < cutoff or published > current_time_utc:
                 continue
 
             title = clean_text(entry.get("title", ""), 180)
