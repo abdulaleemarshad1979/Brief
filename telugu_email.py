@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import time
 from typing import Any
 
 import config
@@ -189,34 +190,34 @@ def generate_telugu_email(
 
     client = Groq(api_key=config.GROQ_API_KEY)
 
-    verified_news = {}
+    simplified_news = {}
+    original_stories_map = {}
 
     for section, stories in summaries.items():
-        verified_news[section] = []
+        simplified_news[section] = []
+        original_stories_map[section] = []
 
         for story in stories:
             if story.get("verification_status") != "verified":
                 continue
 
-            verified_news[section].append(
+            simplified_news[section].append(
                 {
                     "title": story.get("title", ""),
                     "what_happened": story.get("what_happened", ""),
                     "why_it_matters": story.get("why_it_matters", ""),
-                    "key_facts": story.get("key_facts", []),
-                    "sources": story.get("sources", []),
-                    "url": story.get("url", "#"),
+                    "key_facts": story.get("key_facts", [])[:3],
                 }
             )
+            original_stories_map[section].append(story)
 
     prompt = f"""
-Translate the supplied verified news stories into natural, fluent Telugu.
+Translate the verified news titles, summaries, and key facts into clear, natural Telugu.
 
-Verified news:
-{json.dumps(verified_news, ensure_ascii=False, indent=2)}
+News data:
+{json.dumps(simplified_news, ensure_ascii=False, indent=1)}
 
-Return ONLY valid JSON with this exact structure:
-
+Return ONLY valid JSON matching this exact structure:
 {{
   "sections": {{
     "world": [
@@ -224,9 +225,7 @@ Return ONLY valid JSON with this exact structure:
         "title": "తెలుగు శీర్షిక",
         "what_happened": "తెలుగు వివరణ",
         "why_it_matters": "తెలుగు వివరణ లేదా ఖాళీ string",
-        "key_facts": ["తెలుగు అంశం 1", "తెలుగు అంశం 2"],
-        "sources": ["BBC", "Reuters"],
-        "url": "https://..."
+        "key_facts": ["తెలుగు అంశం 1"]
       }}
     ],
     "india": [],
@@ -238,34 +237,49 @@ Return ONLY valid JSON with this exact structure:
 }}
 
 Rules:
-1. Every headline/title must be translated into clear, natural Telugu. Do not keep titles in English unless proper nouns, company names, product names, or person names.
-2. Translate what_happened, why_it_matters, and key_facts into simple, natural Telugu.
-3. Do not invent or add facts. Use only the supplied verified information.
-4. Keep source names in English.
-5. Keep URLs unchanged.
-6. Return ONLY valid JSON. Never return Markdown code fences (like ```json or ```).
+1. Translate every headline/title into clear, natural Telugu. Preserve proper nouns, company names, or product names if standard in Telugu.
+2. Translate what_happened, why_it_matters, and key_facts into simple, clear Telugu.
+3. Do not invent or add facts.
+4. Return ONLY valid JSON matching the requested schema. Do not include Markdown code fences.
 """
 
-    response = client.chat.completions.create(
-        model=config.GROQ_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a professional Telugu news translator and editor. "
-                    "Translate all headlines and content into clear, natural Telugu. "
-                    "Return ONLY valid JSON matching the specified schema."
-                ),
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-        temperature=0.1,
-        max_tokens=6000,
-        response_format={"type": "json_object"},
-    )
+    max_retries = 3
+    response = None
+
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model=config.GROQ_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a professional Telugu news editor. "
+                            "Translate titles and summaries into clear Telugu. "
+                            "Return ONLY valid JSON matching the requested schema."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    },
+                ],
+                temperature=0.1,
+                max_tokens=2500,
+                response_format={"type": "json_object"},
+            )
+            break
+        except Exception as exc:
+            err_msg = str(exc)
+            if ("413" in err_msg or "rate_limit_exceeded" in err_msg or "429" in err_msg) and attempt < max_retries - 1:
+                wait_seconds = (attempt + 1) * 10
+                print(f"Groq rate limit encountered. Waiting {wait_seconds}s before retrying...", flush=True)
+                time.sleep(wait_seconds)
+            else:
+                raise
+
+    if not response or not response.choices:
+        raise RuntimeError("Groq returned no response.")
 
     raw_content = response.choices[0].message.content or ""
     raw_content = raw_content.strip()
@@ -288,6 +302,31 @@ Rules:
         translated_data = json.loads(raw_content)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Groq did not return valid JSON for Telugu briefing: {exc}\nRaw output: {raw_content[:200]}")
+
+    # Re-attach original sources and url to translated stories
+    sections = translated_data.get("sections", {})
+    final_sections = {}
+
+    for section, orig_list in original_stories_map.items():
+        trans_list = sections.get(section, [])
+        final_sections[section] = []
+        for i, orig_story in enumerate(orig_list):
+            if i < len(trans_list) and isinstance(trans_list[i], dict):
+                t_story = trans_list[i]
+                final_sections[section].append(
+                    {
+                        "title": t_story.get("title", orig_story.get("title", "")),
+                        "what_happened": t_story.get("what_happened", orig_story.get("what_happened", "")),
+                        "why_it_matters": t_story.get("why_it_matters", orig_story.get("why_it_matters", "")),
+                        "key_facts": t_story.get("key_facts", orig_story.get("key_facts", [])),
+                        "sources": orig_story.get("sources", []),
+                        "url": orig_story.get("url", "#"),
+                    }
+                )
+            else:
+                final_sections[section].append(orig_story)
+
+    translated_data["sections"] = final_sections
 
     return render_telugu_html(
         translated_data=translated_data,
