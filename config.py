@@ -16,10 +16,11 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "")
 EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD", "")
 RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL", EMAIL_ADDRESS)
-TELUGU_RECIPIENT_EMAIL = os.getenv(
-    "TELUGU_RECIPIENT_EMAIL",
-    "",
-)
+TELUGU_RECIPIENT_EMAILS = [
+    email.strip()
+    for email in os.getenv("TELUGU_RECIPIENT_EMAILS", "").split(",")
+    if email.strip()
+]
 
 WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")

@@ -188,9 +188,9 @@ def main() -> None:
     else:
         print("Skipping email delivery (no EMAIL_APP_PASSWORD configured). Output saved to artifact.")
 
-    if config.TELUGU_RECIPIENT_EMAIL:
+    if config.TELUGU_RECIPIENT_EMAILS:
         try:
-            print("Generating Telugu email for Akbar Basha...", flush=True)
+            print("Generating Telugu email...", flush=True)
 
             telugu_html = generate_telugu_email(
                 summaries=summaries,
@@ -210,28 +210,35 @@ def main() -> None:
                 f"{now.strftime('%d-%m-%Y')}"
             )
 
-            send_email(
-                config.EMAIL_ADDRESS,
-                config.EMAIL_APP_PASSWORD,
-                config.TELUGU_RECIPIENT_EMAIL,
-                telugu_subject,
-                telugu_html,
-            )
+            for recipient in config.TELUGU_RECIPIENT_EMAILS:
+                try:
+                    send_email(
+                        config.EMAIL_ADDRESS,
+                        config.EMAIL_APP_PASSWORD,
+                        recipient,
+                        telugu_subject,
+                        telugu_html,
+                    )
 
-            print(
-                "Telugu morning briefing sent to Akbar Basha.",
-                flush=True,
-            )
+                    print(
+                        f"Telugu briefing sent to {recipient}",
+                        flush=True,
+                    )
+
+                except Exception as exc:
+                    print(
+                        f"Failed to send Telugu email to {recipient}: {exc}",
+                        flush=True,
+                    )
 
         except Exception as exc:
             print(
-                f"Telugu email generation or delivery failed: {exc}",
+                f"Telugu email generation failed: {exc}",
                 flush=True,
             )
     else:
         print(
-            "Skipping Telugu email because "
-            "TELUGU_RECIPIENT_EMAIL is not configured.",
+            "Skipping Telugu email because no recipients are configured.",
             flush=True,
         )
 
