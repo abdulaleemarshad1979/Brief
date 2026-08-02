@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import config
 from ai_summarizer import summarize_section_with_groq
 from email_sender import send_email
-from news import get_all_news
+from news import get_all_news, INVALID_SOURCES
 from weather import get_weather
 
 
@@ -57,7 +57,7 @@ def render_ai_cards(stories: list[dict]) -> str:
         clean_sources = []
         for s in raw_sources:
             st = str(s).strip()
-            if not st or any(inv.lower() in st.lower() for inv in news.INVALID_SOURCES):
+            if not st or any(inv.lower() in st.lower() for inv in INVALID_SOURCES):
                 continue
             if st not in clean_sources:
                 clean_sources.append(st)
