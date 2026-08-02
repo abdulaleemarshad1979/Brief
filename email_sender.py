@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import smtplib
 from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
+from email.utils import formataddr, formatdate, make_msgid
+
+
+def clean_header_value(value: str) -> str:
+    """Remove spaces and dangerous newline characters from email headers."""
+    return value.replace("\r", "").replace("\n", "").strip()
 
 
 def send_email(
@@ -12,10 +17,10 @@ def send_email(
     subject: str,
     html: str,
 ) -> None:
-    sender = (sender or "").strip().replace("\r", "").replace("\n", "")
-    app_password = (app_password or "").strip().replace("\r", "").replace("\n", "")
-    recipient = (recipient or "").strip().replace("\r", "").replace("\n", "")
-    subject = (subject or "").strip().replace("\r", "").replace("\n", "")
+    sender = clean_header_value(sender)
+    recipient = clean_header_value(recipient)
+    subject = clean_header_value(subject)
+    app_password = app_password.replace(" ", "").strip()
 
     if not sender or not app_password or not recipient:
         raise ValueError(
@@ -24,14 +29,14 @@ def send_email(
 
     message = EmailMessage()
 
-    message["From"] = f"Abdul Morning Briefing <{sender}>"
+    message["From"] = formataddr(
+        ("Abdul Morning Briefing", sender)
+    )
     message["To"] = recipient
     message["Reply-To"] = sender
     message["Subject"] = subject
-
-    # Important standard email headers
     message["Date"] = formatdate(localtime=True)
-    message["Message-ID"] = make_msgid(domain="gmail.com")
+    message["Message-ID"] = make_msgid()
 
     message.set_content(
         "శుభోదయం. ఇది మీ రోజువారీ తెలుగు వార్తలు మరియు "
@@ -44,7 +49,7 @@ def send_email(
     )
 
     print(
-        f"SMTP sending to exact address: {recipient!r}",
+        f"Sending email to: {recipient!r}",
         flush=True,
     )
 
@@ -62,10 +67,10 @@ def send_email(
 
         if refused:
             raise RuntimeError(
-                f"Recipient refused by SMTP server: {refused}"
+                f"SMTP refused recipient: {refused}"
             )
 
     print(
-        f"SMTP accepted email delivery for: {recipient!r}",
+        f"SMTP accepted email for: {recipient!r}",
         flush=True,
     )
