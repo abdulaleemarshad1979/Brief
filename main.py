@@ -17,11 +17,7 @@ def article_cards(articles: list[dict]) -> str:
 
     cards = []
     for article in articles:
-        summary = (
-            f'<p>{html.escape(article["summary"])}</p>'
-            if article.get("summary")
-            else ""
-        )
+        summary = f'<p>{html.escape(article["summary"])}</p>' if article.get("summary") else ""
         cards.append(
             f"""
             <div class="story">
@@ -34,21 +30,33 @@ def article_cards(articles: list[dict]) -> str:
     return "\n".join(cards)
 
 
-def build_email(news: dict, weather: dict, date_text: str) -> str:
+def weather_cards(weather_by_location: list[dict]) -> str:
+    cards = []
+    for weather in weather_by_location:
+        cards.append(
+            f"""
+            <div class="weather-card">
+              <h3>{html.escape(weather['name'])}</h3>
+              <div class="condition">{html.escape(weather['condition'])}</div>
+              <div class="temp">{weather['min_temp']}–{weather['max_temp']}°C</div>
+              <div class="weather-details">
+                <span>🌧️ {weather['rain_probability']}%</span>
+                <span>💨 {weather['wind_speed']} km/h</span>
+                <span>☀️ UV {weather['uv_index']}</span>
+              </div>
+              <p>{html.escape(weather['advice'])}</p>
+            </div>
+            """
+        )
+    return "\n".join(cards)
+
+
+def build_email(news: dict, weather_by_location: list[dict], date_text: str) -> str:
     template = Path("templates/briefing.html").read_text(encoding="utf-8")
     replacements = {
         "{{USER_NAME}}": html.escape(config.USER_NAME),
         "{{DATE}}": html.escape(date_text),
-        "{{CITY}}": html.escape(config.CITY_NAME),
-        "{{CONDITION}}": html.escape(weather["condition"]),
-        "{{MAX_TEMP}}": str(weather["max_temp"]),
-        "{{MIN_TEMP}}": str(weather["min_temp"]),
-        "{{RAIN}}": str(weather["rain_probability"]),
-        "{{WIND}}": str(weather["wind_speed"]),
-        "{{UV}}": str(weather["uv_index"]),
-        "{{SUNRISE}}": weather["sunrise"],
-        "{{SUNSET}}": weather["sunset"],
-        "{{ADVICE}}": html.escape(weather["advice"]),
+        "{{WEATHER_CARDS}}": weather_cards(weather_by_location),
         "{{WORLD_NEWS}}": article_cards(news["world"]),
         "{{INDIA_NEWS}}": article_cards(news["india"]),
         "{{AP_NEWS}}": article_cards(news["andhra_pradesh"]),
@@ -71,9 +79,14 @@ def main() -> None:
     }
 
     news = get_all_news(limits)
-    weather = get_weather(config.LATITUDE, config.LONGITUDE, config.TIMEZONE)
+    weather_by_location = []
+    for location in config.LOCATIONS:
+        result = get_weather(location["latitude"], location["longitude"], config.TIMEZONE)
+        result["name"] = location["name"]
+        weather_by_location.append(result)
+
     date_text = now.strftime("%A, %d %B %Y")
-    email_html = build_email(news, weather, date_text)
+    email_html = build_email(news, weather_by_location, date_text)
 
     subject = f"Morning Briefing — {now.strftime('%d %b %Y')}"
     send_email(

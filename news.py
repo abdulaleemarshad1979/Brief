@@ -103,8 +103,26 @@ def collect_category(category: str, limit: int) -> list[dict]:
                 entry.get("summary") or entry.get("description") or "",
                 320,
             )
+
+            # Google News often returns a noisy list of related headlines rather
+            # than a real article summary, so keep those entries headline-only.
+            if "Google News" in fallback_source:
+                summary = ""
             if summary.lower() == title.lower():
                 summary = ""
+
+            # Keep the English briefing readable and prevent PIB Hindi notices
+            # from dominating the India section.
+            ascii_letters = sum(ch.isascii() and ch.isalpha() for ch in title)
+            all_letters = sum(ch.isalpha() for ch in title)
+            if all_letters and ascii_letters / all_letters < 0.72:
+                continue
+            low_title = title.lower()
+            if category == "india" and source == "PIB" and any(
+                phrase in low_title
+                for phrase in ("congratulates", "congratulated", "greets", "wishes")
+            ):
+                continue
 
             candidates.append(
                 {

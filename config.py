@@ -1,10 +1,14 @@
 import os
 
 USER_NAME = os.getenv("USER_NAME", "Abdul")
-CITY_NAME = os.getenv("CITY_NAME", "Rajahmundry")
-LATITUDE = float(os.getenv("LATITUDE", "17.0005"))
-LONGITUDE = float(os.getenv("LONGITUDE", "81.8040"))
 TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata")
+
+LOCATIONS = [
+    {"name": "Rajahmundry", "latitude": 17.0052, "longitude": 81.7778},
+    {"name": "Ramachandrapuram", "latitude": 16.8364, "longitude": 82.0287},
+    {"name": "Kakinada", "latitude": 16.9891, "longitude": 82.2475},
+    {"name": "Aditya University, Surampalem", "latitude": 17.0818, "longitude": 82.0668},
+]
 
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "")
 EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD", "")
