@@ -39,6 +39,17 @@ def render_ai_cards(stories: list[dict]) -> str:
             lis = "".join(f"<li>{html.escape(format_fact(fact))}</li>" for fact in key_facts)
             facts_html = f'<ul class="key-facts">{lis}</ul>'
 
+        status = item.get("verification_status", "unverified")
+        badge_labels = {
+            "verified": "✅ Verified",
+            "developing": "🟡 Developing",
+            "single_source": "⚠️ Single source",
+            "unverified": "❓ Unverified",
+            "rumor": "🗣️ Rumour / leak",
+        }
+        badge_text = badge_labels.get(status, "❓ Unverified")
+        status_badge_html = f'<span class="status-badge badge-{html.escape(status)}">{badge_text}</span>'
+
         sources = item.get("sources") or []
         if isinstance(sources, list):
             sources = list(dict.fromkeys(str(source).strip() for source in sources if source and str(source).strip()))
@@ -50,7 +61,7 @@ def render_ai_cards(stories: list[dict]) -> str:
         cards.append(
             f"""
             <div class="ai-card">
-              <h3><a href="{url}" target="_blank" rel="noopener">{title}</a></h3>
+              <h3>{status_badge_html}<a href="{url}" target="_blank" rel="noopener">{title}</a></h3>
               {f'<p><strong>What happened:</strong> {what}</p>' if what else ''}
               {f'<p><strong>Why it matters:</strong> {why}</p>' if why else ''}
               {facts_html}
