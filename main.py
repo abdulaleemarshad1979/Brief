@@ -10,7 +10,10 @@ import news
 from ai_summarizer import summarize_section_with_groq
 from email_sender import send_email
 from news import get_all_news, INVALID_SOURCES
+from telugu_briefing import generate_telugu_briefing
+from telugu_email import generate_telugu_email
 from weather import get_weather
+from whatsapp_sender import send_whatsapp_template
 
 
 def format_fact(fact) -> str:
@@ -184,6 +187,100 @@ def main() -> None:
         print("Morning briefing email sent successfully.")
     else:
         print("Skipping email delivery (no EMAIL_APP_PASSWORD configured). Output saved to artifact.")
+
+    if config.TELUGU_RECIPIENT_EMAIL:
+        try:
+            print("Generating Telugu email for Akbar Basha...", flush=True)
+
+            telugu_html = generate_telugu_email(
+                summaries=summaries,
+                weather_by_location=weather_by_location,
+                date_text=date_text,
+                coverage_date_text=coverage_date_text,
+            )
+
+            telugu_output = Path("output/briefing-telugu.html")
+            telugu_output.write_text(
+                telugu_html,
+                encoding="utf-8",
+            )
+
+            telugu_subject = (
+                f"ఈరోజు ఉదయపు వార్తలు — "
+                f"{now.strftime('%d-%m-%Y')}"
+            )
+
+            send_email(
+                config.EMAIL_ADDRESS,
+                config.EMAIL_APP_PASSWORD,
+                config.TELUGU_RECIPIENT_EMAIL,
+                telugu_subject,
+                telugu_html,
+            )
+
+            print(
+                "Telugu morning briefing sent to Akbar Basha.",
+                flush=True,
+            )
+
+        except Exception as exc:
+            print(
+                f"Telugu email generation or delivery failed: {exc}",
+                flush=True,
+            )
+    else:
+        print(
+            "Skipping Telugu email because "
+            "TELUGU_RECIPIENT_EMAIL is not configured.",
+            flush=True,
+        )
+
+    whatsapp_is_configured = all(
+        [
+            config.WHATSAPP_ACCESS_TOKEN,
+            config.WHATSAPP_PHONE_NUMBER_ID,
+            config.WHATSAPP_RECIPIENT_NUMBER,
+            config.WHATSAPP_TEMPLATE_NAME,
+        ]
+    )
+
+    if whatsapp_is_configured:
+        try:
+            print("Generating concise Telugu WhatsApp briefing...", flush=True)
+
+            telugu_message = generate_telugu_briefing(
+                summaries=summaries,
+                weather_by_location=weather_by_location,
+                date_text=date_text,
+            )
+
+            whatsapp_output = Path("output/whatsapp-telugu.txt")
+            whatsapp_output.write_text(
+                telugu_message,
+                encoding="utf-8",
+            )
+
+            send_whatsapp_template(
+                access_token=config.WHATSAPP_ACCESS_TOKEN,
+                phone_number_id=config.WHATSAPP_PHONE_NUMBER_ID,
+                recipient_number=config.WHATSAPP_RECIPIENT_NUMBER,
+                template_name=config.WHATSAPP_TEMPLATE_NAME,
+                language_code=config.WHATSAPP_TEMPLATE_LANGUAGE,
+                message_text=telugu_message,
+                graph_api_version=config.WHATSAPP_GRAPH_API_VERSION,
+            )
+
+        except Exception as exc:
+            # WhatsApp failure must not stop the English Gmail.
+            print(
+                f"WhatsApp delivery failed: {exc}",
+                flush=True,
+            )
+    else:
+        print(
+            "Skipping WhatsApp delivery because its secrets are not configured.",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

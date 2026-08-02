@@ -35,10 +35,20 @@ jobs:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          TELUGU_RECIPIENT_EMAIL: ${{ secrets.TELUGU_RECIPIENT_EMAIL }}
+          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          WHATSAPP_RECIPIENT_NUMBER: ${{ secrets.WHATSAPP_RECIPIENT_NUMBER }}
+          WHATSAPP_TEMPLATE_NAME: ${{ secrets.WHATSAPP_TEMPLATE_NAME }}
+          WHATSAPP_TEMPLATE_LANGUAGE: te
+          WHATSAPP_GRAPH_API_VERSION: v23.0
         run: python main.py
 
-      - name: Upload briefing HTML artifact
+      - name: Upload briefing files
         uses: actions/upload-artifact@v4
         with:
           name: briefing-artifact
-          path: output/briefing.html
+          path: |
+            output/briefing.html
+            output/briefing-telugu.html
+            output/whatsapp-telugu.txt
