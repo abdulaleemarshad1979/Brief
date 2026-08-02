@@ -2,7 +2,7 @@ name: Daily Morning Briefing
 
 on:
   schedule:
-    - cron: "30 6 * * *"
+    - cron: "30 5 * * *"
       timezone: "Asia/Kolkata"
   workflow_dispatch:
 
