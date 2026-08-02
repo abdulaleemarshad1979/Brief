@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  send:
+  generate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -27,14 +27,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Send briefing
+      - name: Generate briefing
         env:
           USER_NAME: Abdul
-          CITY_NAME: Rajahmundry
-          LATITUDE: "17.0005"
-          LONGITUDE: "81.8040"
           TIMEZONE: Asia/Kolkata
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: python main.py
+
+      - name: Upload briefing HTML artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: briefing-artifact
+          path: output/briefing.html

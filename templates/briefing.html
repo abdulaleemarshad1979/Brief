@@ -3,65 +3,84 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Morning Briefing</title>
   <style>
     body {
       margin: 0;
-      background: #f3f5f7;
-      font-family: Arial, sans-serif;
-      color: #17202a;
+      background: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #0f172a;
+      line-height: 1.5;
     }
 
     .wrap {
-      max-width: 760px;
+      max-width: 780px;
       margin: auto;
       padding: 24px 12px;
     }
 
     .header {
-      background: #111827;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
       color: white;
-      padding: 28px;
-      border-radius: 16px;
+      padding: 32px 28px;
+      border-radius: 18px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
 
     .header h1 {
-      margin: 0 0 8px;
-      font-size: 27px;
+      margin: 0 0 6px;
+      font-size: 28px;
+      font-weight: 800;
     }
 
     .header p {
       margin: 0;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+
+    .coverage-badge {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 4px 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      font-size: 12px;
       color: #cbd5e1;
     }
 
     .weather {
       background: white;
-      margin-top: 16px;
-      padding: 22px;
-      border-radius: 16px;
+      margin-top: 20px;
+      padding: 24px;
+      border-radius: 18px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
 
     .weather h2 {
       margin: 0 0 16px;
+      font-size: 20px;
+      color: #1e293b;
     }
 
     .weather-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
+      gap: 14px;
     }
 
     .weather-card {
-      border: 1px solid #e5e7eb;
+      border: 1px solid #e2e8f0;
       border-radius: 14px;
       padding: 16px;
       background: #f8fafc;
     }
 
     .weather-card h3 {
-      margin: 0 0 8px;
+      margin: 0 0 6px;
       font-size: 16px;
+      color: #0f172a;
     }
 
     .condition {
@@ -70,80 +89,109 @@
     }
 
     .temp {
-      font-size: 27px;
+      font-size: 26px;
       font-weight: 700;
-      margin: 5px 0 10px;
+      margin: 6px 0 10px;
+      color: #0f172a;
     }
 
     .weather-details {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
-      color: #475569;
+      gap: 12px;
+      color: #64748b;
       font-size: 13px;
     }
 
     .weather-card p {
-      margin: 12px 0 0;
+      margin: 10px 0 0;
       font-size: 13px;
       color: #334155;
+      line-height: 1.4;
     }
 
     .section {
       background: white;
-      margin-top: 16px;
-      padding: 22px;
-      border-radius: 16px;
+      margin-top: 20px;
+      padding: 24px;
+      border-radius: 18px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
 
     .section h2 {
-      margin: 0 0 14px;
+      margin: 0 0 18px;
       font-size: 20px;
+      color: #0f172a;
+      border-bottom: 2px solid #f1f5f9;
+      padding-bottom: 10px;
     }
 
-    .story {
-      padding: 14px 0;
-      border-top: 1px solid #e5e7eb;
+    .ai-card {
+      padding: 16px 0;
+      border-top: 1px solid #e2e8f0;
     }
 
-    .story:first-of-type {
+    .ai-card:first-of-type {
       border-top: 0;
       padding-top: 0;
     }
 
-    .story a {
-      color: #0f4cbd;
-      font-size: 16px;
+    .ai-card h3 {
+      margin: 0 0 8px;
+    }
+
+    .ai-card h3 a {
+      color: #2563eb;
+      font-size: 17px;
       font-weight: 700;
       text-decoration: none;
-      line-height: 1.35;
+      line-height: 1.4;
     }
 
-    .story p {
-      margin: 7px 0;
-      color: #4b5563;
+    .ai-card h3 a:hover {
+      text-decoration: underline;
+    }
+
+    .ai-card p {
+      margin: 6px 0;
+      color: #334155;
       font-size: 14px;
-      line-height: 1.5;
     }
 
-    .story span {
-      color: #6b7280;
+    .ai-card p strong {
+      color: #0f172a;
+    }
+
+    .key-facts {
+      margin: 6px 0 8px 20px;
+      padding: 0;
+      color: #475569;
+      font-size: 13px;
+    }
+
+    .key-facts li {
+      margin-bottom: 4px;
+    }
+
+    .meta-tag {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 3px 8px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-radius: 6px;
       font-size: 12px;
-    }
-
-    .empty {
-      color: #6b7280;
-      font-size: 14px;
+      font-weight: 500;
     }
 
     .footer {
-      color: #6b7280;
+      color: #64748b;
       text-align: center;
       font-size: 12px;
-      padding: 20px;
+      padding: 24px 0 12px;
     }
 
-    @media (max-width:600px) {
+    @media (max-width: 600px) {
       .weather-grid {
         grid-template-columns: 1fr;
       }
@@ -155,31 +203,48 @@
   <div class="wrap">
     <div class="header">
       <h1>Good morning, {{USER_NAME}} 👋</h1>
-      <p>{{DATE}} · Your daily world, India and technology briefing</p>
+      <p>{{DATE}} · Daily Researched Morning Briefing</p>
+      <div class="coverage-badge">📅 News coverage: {{COVERAGE_DATE}} + Overnight Updates</div>
     </div>
 
     <div class="weather">
-      <h2>🌦️ Weather at your four locations</h2>
+      <h2>🌦️ Weather Forecast — {{DATE}}</h2>
       <div class="weather-grid">{{WEATHER_CARDS}}</div>
     </div>
 
     <div class="section">
-      <h2>🌍 World News</h2>{{WORLD_NEWS}}
-    </div>
-    <div class="section">
-      <h2>🇮🇳 India News</h2>{{INDIA_NEWS}}
-    </div>
-    <div class="section">
-      <h2>📍 Andhra Pradesh & Rajahmundry</h2>{{AP_NEWS}}
-    </div>
-    <div class="section">
-      <h2>💻 Technology, AI & Cybersecurity</h2>{{TECH_NEWS}}
-    </div>
-    <div class="section">
-      <h2>🔥 Trending on Hacker News</h2>{{HN_NEWS}}
+      <h2>🌍 World News</h2>
+      {{WORLD_NEWS}}
     </div>
 
-    <div class="footer">Automatically generated from public RSS feeds, Hacker News and Open-Meteo.</div>
+    <div class="section">
+      <h2>🇮🇳 India News</h2>
+      {{INDIA_NEWS}}
+    </div>
+
+    <div class="section">
+      <h2>📍 Andhra Pradesh & Local</h2>
+      {{AP_NEWS}}
+    </div>
+
+    <div class="section">
+      <h2>💻 Technology, AI & Cybersecurity</h2>
+      {{TECH_NEWS}}
+    </div>
+
+    <div class="section">
+      <h2>🔬 Research & Innovation</h2>
+      {{RESEARCH_NEWS}}
+    </div>
+
+    <div class="section">
+      <h2>🔥 Trending on Hacker News</h2>
+      {{HN_NEWS}}
+    </div>
+
+    <div class="footer">
+      AI Research Briefing generated with Groq (llama-3.1-8b-instant), RSS Feeds & Open-Meteo.
+    </div>
   </div>
 </body>
 

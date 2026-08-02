@@ -1,29 +1,46 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import config
+from ai_summarizer import summarize_section_with_groq
 from email_sender import send_email
 from news import get_all_news
 from weather import get_weather
 
 
-def article_cards(articles: list[dict]) -> str:
-    if not articles:
+def render_ai_cards(stories: list[dict]) -> str:
+    if not stories:
         return '<div class="empty">No recent stories were available from the configured feeds.</div>'
 
     cards = []
-    for article in articles:
-        summary = f'<p>{html.escape(article["summary"])}</p>' if article.get("summary") else ""
+    for item in stories:
+        title = html.escape(item.get("title", "Untitled"))
+        url = html.escape(item.get("url", "#"), quote=True)
+        what = html.escape(item.get("what_happened", ""))
+        why = html.escape(item.get("why_it_matters", ""))
+
+        facts_html = ""
+        key_facts = item.get("key_facts") or []
+        if isinstance(key_facts, list) and len(key_facts) > 0:
+            lis = "".join(f"<li>{html.escape(str(fact))}</li>" for fact in key_facts)
+            facts_html = f'<ul class="key-facts">{lis}</ul>'
+
+        sources = item.get("sources") or []
+        source_str = ", ".join(sources) if isinstance(sources, list) else str(sources)
+        meta_html = f'<span class="meta-tag">Sources: {html.escape(source_str)}</span>' if source_str else ""
+
         cards.append(
             f"""
-            <div class="story">
-              <a href="{html.escape(article['url'], quote=True)}">{html.escape(article['title'])}</a>
-              {summary}
-              <span>{html.escape(article['source'])}</span>
+            <div class="ai-card">
+              <h3><a href="{url}" target="_blank" rel="noopener">{title}</a></h3>
+              {f'<p><strong>What happened:</strong> {what}</p>' if what else ''}
+              {f'<p><strong>Why it matters:</strong> {why}</p>' if why else ''}
+              {facts_html}
+              {meta_html}
             </div>
             """
         )
@@ -51,17 +68,24 @@ def weather_cards(weather_by_location: list[dict]) -> str:
     return "\n".join(cards)
 
 
-def build_email(news: dict, weather_by_location: list[dict], date_text: str) -> str:
+def build_briefing_html(
+    summaries: dict[str, list[dict]],
+    weather_by_location: list[dict],
+    date_text: str,
+    coverage_date_text: str,
+) -> str:
     template = Path("templates/briefing.html").read_text(encoding="utf-8")
     replacements = {
         "{{USER_NAME}}": html.escape(config.USER_NAME),
         "{{DATE}}": html.escape(date_text),
+        "{{COVERAGE_DATE}}": html.escape(coverage_date_text),
         "{{WEATHER_CARDS}}": weather_cards(weather_by_location),
-        "{{WORLD_NEWS}}": article_cards(news["world"]),
-        "{{INDIA_NEWS}}": article_cards(news["india"]),
-        "{{AP_NEWS}}": article_cards(news["andhra_pradesh"]),
-        "{{TECH_NEWS}}": article_cards(news["tech"]),
-        "{{HN_NEWS}}": article_cards(news["hacker_news"]),
+        "{{WORLD_NEWS}}": render_ai_cards(summaries["world"]),
+        "{{INDIA_NEWS}}": render_ai_cards(summaries["india"]),
+        "{{AP_NEWS}}": render_ai_cards(summaries["andhra_pradesh"]),
+        "{{TECH_NEWS}}": render_ai_cards(summaries["tech"]),
+        "{{RESEARCH_NEWS}}": render_ai_cards(summaries["research"]),
+        "{{HN_NEWS}}": render_ai_cards(summaries["hacker_news"]),
     }
     for key, value in replacements.items():
         template = template.replace(key, value)
@@ -70,33 +94,63 @@ def build_email(news: dict, weather_by_location: list[dict], date_text: str) -> 
 
 def main() -> None:
     now = datetime.now(ZoneInfo(config.TIMEZONE))
+    yesterday = now - timedelta(days=1)
+
+    date_text = now.strftime("%d %B %Y")
+    coverage_date_text = yesterday.strftime("%d %B %Y")
+
     limits = {
         "world": config.MAX_WORLD,
         "india": config.MAX_INDIA,
         "andhra_pradesh": config.MAX_AP,
         "tech": config.MAX_TECH,
+        "research": config.MAX_RESEARCH,
         "hacker_news": config.MAX_HN,
     }
 
-    news = get_all_news(limits)
+    print("Collecting news feeds and articles...")
+    raw_news = get_all_news(limits)
+
+    print("Synthesizing AI research summaries with Groq...")
+    summaries = {
+        "world": summarize_section_with_groq("World News", raw_news["world"]),
+        "india": summarize_section_with_groq("India News", raw_news["india"]),
+        "andhra_pradesh": summarize_section_with_groq("Andhra Pradesh News", raw_news["andhra_pradesh"]),
+        "tech": summarize_section_with_groq("Technology & AI", raw_news["tech"]),
+        "research": summarize_section_with_groq("Research & Papers", raw_news["research"]),
+        "hacker_news": summarize_section_with_groq("Hacker News", raw_news["hacker_news"]),
+    }
+
+    print("Fetching weather forecasts for 4 locations...")
     weather_by_location = []
     for location in config.LOCATIONS:
         result = get_weather(location["latitude"], location["longitude"], config.TIMEZONE)
         result["name"] = location["name"]
         weather_by_location.append(result)
 
-    date_text = now.strftime("%A, %d %B %Y")
-    email_html = build_email(news, weather_by_location, date_text)
-
-    subject = f"Morning Briefing — {now.strftime('%d %b %Y')}"
-    send_email(
-        config.EMAIL_ADDRESS,
-        config.EMAIL_APP_PASSWORD,
-        config.RECIPIENT_EMAIL,
-        subject,
-        email_html,
+    briefing_html = build_briefing_html(
+        summaries, weather_by_location, date_text, coverage_date_text
     )
-    print("Morning briefing sent successfully.")
+
+    # Ensure output directory exists and write briefing.html artifact
+    output_file = Path(config.OUTPUT_PATH)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(briefing_html, encoding="utf-8")
+    print(f"Briefing HTML generated successfully at {output_file}")
+
+    # Conditionally send email if credentials are present
+    if config.EMAIL_ADDRESS and config.EMAIL_APP_PASSWORD:
+        subject = f"Morning Briefing — {now.strftime('%d %b %Y')}"
+        send_email(
+            config.EMAIL_ADDRESS,
+            config.EMAIL_APP_PASSWORD,
+            config.RECIPIENT_EMAIL,
+            subject,
+            briefing_html,
+        )
+        print("Morning briefing email sent successfully.")
+    else:
+        print("Skipping email delivery (no EMAIL_APP_PASSWORD configured). Output saved to artifact.")
 
 
 if __name__ == "__main__":

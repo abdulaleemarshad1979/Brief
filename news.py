@@ -10,27 +10,41 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 
-HEADERS = {"User-Agent": "MorningBriefing/1.0"}
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+}
 
 FEEDS = {
     "world": [
-        ("Google News – World", "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-IN&gl=IN&ceid=IN:en"),
+        (
+            "Google News – World",
+            "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-IN&gl=IN&ceid=IN:en",
+        ),
         ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
     ],
     "india": [
-        ("Google News – India", "https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en"),
+        (
+            "Google News – India",
+            "https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en",
+        ),
         ("PIB", "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3"),
     ],
     "andhra_pradesh": [
         (
             "Google News – Andhra Pradesh",
             "https://news.google.com/rss/search?q="
-            + quote_plus("Andhra Pradesh OR Rajahmundry when:1d")
+            + quote_plus("Andhra Pradesh OR Rajahmundry OR Kakinada when:1d")
             + "&hl=en-IN&gl=IN&ceid=IN:en",
         ),
     ],
     "tech": [
-        ("Google News – Technology", "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-IN&gl=IN&ceid=IN:en"),
+        (
+            "Google News – Technology",
+            "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-IN&gl=IN&ceid=IN:en",
+        ),
         (
             "Google News – AI & Cybersecurity",
             "https://news.google.com/rss/search?q="
@@ -38,15 +52,43 @@ FEEDS = {
             + "&hl=en-IN&gl=IN&ceid=IN:en",
         ),
     ],
+    "research": [
+        ("arXiv AI Research", "http://export.arxiv.org/rss/cs.AI"),
+        (
+            "Google News – Research & Papers",
+            "https://news.google.com/rss/search?q="
+            + quote_plus("(AI research OR paper OR Google Research OR OpenAI) when:1d")
+            + "&hl=en-IN&gl=IN&ceid=IN:en",
+        ),
+    ],
 }
 
 
-def clean_text(value: str, limit: int = 300) -> str:
+def clean_text(value: str, limit: int = 400) -> str:
     text = BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True)
     text = re.sub(r"\s+", " ", text).strip()
     if len(text) > limit:
         text = text[: limit - 1].rsplit(" ", 1)[0] + "…"
     return text
+
+
+def extract_article_content(url: str, max_chars: int = 1200) -> str:
+    """Fetch freely accessible article URL and extract main paragraph text."""
+    if not url or "news.google.com" in url or "arxiv.org" in url:
+        return ""
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=8)
+        if resp.status_code != 200:
+            return ""
+        soup = BeautifulSoup(resp.text, "html.parser")
+        # Strip script, style, nav, footer, header
+        for element in soup(["script", "style", "nav", "footer", "header", "aside"]):
+            element.decompose()
+        paragraphs = [p.get_text(strip=True) for p in soup.find_all("p") if len(p.get_text(strip=True)) > 40]
+        text = " ".join(paragraphs)
+        return text[:max_chars] if text else ""
+    except Exception:
+        return ""
 
 
 def published_datetime(entry) -> datetime:
@@ -108,24 +150,23 @@ def collect_category(category: str, limit: int) -> list[dict]:
             if isinstance(entry.get("source"), dict):
                 source = entry.source.get("title") or fallback_source
 
+            link = entry.get("link") or ""
             summary = clean_text(
                 entry.get("summary") or entry.get("description") or "",
-                320,
+                400,
             )
 
-            # Google News often returns a noisy list of related headlines rather
-            # than a real article summary, so keep those entries headline-only.
             if "Google News" in fallback_source:
                 summary = ""
             if summary.lower() == title.lower():
                 summary = ""
 
-            # Keep the English briefing readable and prevent PIB Hindi notices
-            # from dominating the India section.
+            # Filter out heavy non-ASCII / non-English content
             ascii_letters = sum(ch.isascii() and ch.isalpha() for ch in title)
             all_letters = sum(ch.isalpha() for ch in title)
             if all_letters and ascii_letters / all_letters < 0.72:
                 continue
+
             low_title = title.lower()
             if category == "india" and source == "PIB" and any(
                 phrase in low_title
@@ -137,14 +178,18 @@ def collect_category(category: str, limit: int) -> list[dict]:
                 {
                     "title": title,
                     "summary": summary,
-                    "url": entry.get("link", ""),
+                    "url": link,
                     "source": source,
                     "published": published,
                 }
             )
 
-    candidates.sort(key=lambda item: item["published"], reverse=True)
-    return candidates[:limit]
+            if len(candidates) >= limit:
+                break
+        if len(candidates) >= limit:
+            break
+
+    return candidates
 
 
 def collect_hacker_news(limit: int = 4) -> list[dict]:
@@ -186,5 +231,6 @@ def get_all_news(limits: dict[str, int]) -> dict[str, list[dict]]:
         "india": collect_category("india", limits["india"]),
         "andhra_pradesh": collect_category("andhra_pradesh", limits["andhra_pradesh"]),
         "tech": collect_category("tech", limits["tech"]),
+        "research": collect_category("research", limits.get("research", 4)),
         "hacker_news": collect_hacker_news(limits["hacker_news"]),
     }
