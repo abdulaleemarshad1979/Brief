@@ -12,12 +12,15 @@ def send_email(
     subject: str,
     html: str,
 ) -> None:
+    sender = (sender or "").strip().replace("\r", "").replace("\n", "")
+    app_password = (app_password or "").strip().replace("\r", "").replace("\n", "")
+    recipient = (recipient or "").strip().replace("\r", "").replace("\n", "")
+    subject = (subject or "").strip().replace("\r", "").replace("\n", "")
+
     if not sender or not app_password or not recipient:
         raise ValueError(
             "Sender, app password and recipient must be configured."
         )
-
-    recipient = recipient.strip()
 
     message = EmailMessage()
 
@@ -63,6 +66,6 @@ def send_email(
             )
 
     print(
-        f"SMTP accepted Telugu email for: {recipient!r}",
+        f"SMTP accepted email delivery for: {recipient!r}",
         flush=True,
     )
