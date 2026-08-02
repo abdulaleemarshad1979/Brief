@@ -78,8 +78,7 @@ def summarize_section_with_groq(
             material.append(
                 f"[{idx}] Title: {item.get('title')}\n"
                 f"    Source: {item.get('source')}\n"
-                f"    URL: {item.get('url')}\n"
-                f"    Snippet/Body: {item.get('summary', '')[:500]}\n"
+                f"    Snippet: {item.get('summary', '')[:400]}\n"
             )
 
         prompt = f"""You are a strict, quality-first research analyst compiling a morning briefing section for '{category_label}'.
@@ -108,9 +107,9 @@ Each object MUST strictly follow this JSON schema:
   "title": "Concise factual headline",
   "what_happened": "2-3 factual sentences explaining what occurred",
   "why_it_matters": "1-2 factual sentences on direct impact, or empty string '' if unavailable",
-  "key_facts": ["Fact or statistic 1 as a plain string", "Fact 2 as a plain string"],
+  "key_facts": ["Fact 1 as plain string", "Fact 2 as plain string"],
   "sources": ["Source Name 1", "Source Name 2"],
-  "url": "Primary URL"
+  "article_index": 1
 }}
 """
 
@@ -125,7 +124,7 @@ Each object MUST strictly follow this JSON schema:
             ],
             response_format={"type": "json_object"},
             temperature=0.1,
-            max_tokens=2048,
+            max_tokens=4096,
         )
 
         content = response.choices[0].message.content or "{}"
@@ -137,6 +136,8 @@ Each object MUST strictly follow this JSON schema:
             for s in stories:
                 if not isinstance(s, dict):
                     continue
+
+                # Key facts sanitization
                 raw_facts = s.get("key_facts") or []
                 clean_facts = []
                 if isinstance(raw_facts, list):
@@ -151,6 +152,24 @@ Each object MUST strictly follow this JSON schema:
                         elif f:
                             clean_facts.append(str(f))
                 s["key_facts"] = clean_facts
+
+                # Map article URL from input articles using article_index
+                idx = s.get("article_index", 1)
+                url = "#"
+                if isinstance(idx, int) and 1 <= idx <= len(articles):
+                    url = articles[idx - 1].get("url", "#")
+                elif s.get("url"):
+                    url = s["url"]
+                s["url"] = url
+
+                # Ensure exact JSON key for why_it_matters if model mis-keys it
+                if "why_it_matters" not in s:
+                    for k in list(s.keys()):
+                        if "why" in k or "matters" in k:
+                            s["why_it_matters"] = s.pop(k)
+                            break
+                    else:
+                        s["why_it_matters"] = ""
 
                 # Compute verification status strictly in Python
                 sources = s.get("sources") or []
